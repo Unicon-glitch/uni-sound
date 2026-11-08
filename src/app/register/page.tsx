@@ -16,7 +16,7 @@ const errors: Record<string, string> = {
 export default async function RegisterPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; detail?: string }>;
 }) {
   const params = await searchParams;
 
@@ -34,7 +34,12 @@ export default async function RegisterPage({
 
         {params.error && (
           <div className="form-message error" role="alert">
-            {errors[params.error] ?? "Проверь данные и попробуй ещё раз."}
+            <p>{errors[params.error] ?? "Проверь данные и попробуй ещё раз."}</p>
+            {params.detail && (
+              <p className="field-hint" style={{ marginTop: "8px", overflowWrap: "anywhere" }}>
+                Техническая причина: {params.detail}
+              </p>
+            )}
           </div>
         )}
 
