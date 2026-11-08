@@ -1,3 +1,6 @@
+import { createClient } from "@/lib/supabase/server";
+import { signOut } from "@/lib/auth/actions";
+import Link from "next/link";
 import {
   AudioLines,
   Compass,
@@ -35,7 +38,13 @@ const collections = [
   },
 ];
 
-export default function HomePage() {
+export default async function HomePage() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const { data: profile } = user
+    ? await supabase.from("profiles").select("display_name, role").eq("id", user.id).maybeSingle()
+    : { data: null };
+
   return (
     <main className="app-shell">
       <aside className="sidebar">
@@ -87,9 +96,19 @@ export default function HomePage() {
             <button className="icon-button" type="button" aria-label="Поиск">
               <Search size={18} />
             </button>
-            <button className="login-button" type="button" disabled>
-              Войти
-            </button>
+            {user ? (
+              <>
+                {profile?.role === "admin" && <Link className="login-button" href="/admin">Админ-панель</Link>}
+                <form action={signOut}>
+                  <button className="login-button" type="submit">{profile?.display_name || "Выйти"}</button>
+                </form>
+              </>
+            ) : (
+              <>
+                <Link className="icon-button" href="/register" aria-label="Создать аккаунт"><Sparkles size={17} /></Link>
+                <Link className="login-button" href="/login">Войти</Link>
+              </>
+            )}
           </div>
         </header>
 
