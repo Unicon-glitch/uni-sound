@@ -43,7 +43,31 @@ export async function signUp(formData: FormData) {
   });
 
   if (error) {
-    redirect("/register?error=signup-failed");
+    const errorCode =
+      "code" in error && typeof error.code === "string"
+        ? error.code
+        : "";
+
+    console.error("[Uni Sound] Supabase sign-up failed:", {
+      code: errorCode || "unknown",
+      status: error.status,
+      message: error.message,
+    });
+
+    const knownErrors: Record<string, string> = {
+      user_already_exists: "email-exists",
+      email_exists: "email-exists",
+      email_address_invalid: "invalid-email",
+      weak_password: "weak-password",
+      signup_disabled: "signup-disabled",
+      email_provider_disabled: "email-disabled",
+      over_email_send_rate_limit: "email-rate-limit",
+      over_request_rate_limit: "rate-limit",
+    };
+
+    redirect(
+      `/register?error=${knownErrors[errorCode] ?? "signup-failed"}`,
+    );
   }
 
   redirect("/check-email");
