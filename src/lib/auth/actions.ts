@@ -20,7 +20,7 @@ export async function signUp(formData: FormData) {
   const password = getPassword(formData, "password");
   const displayName = getText(formData, "displayName");
 
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+  if (!email || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) {
     redirect("/register?error=invalid-email");
   }
 
@@ -32,27 +32,38 @@ export async function signUp(formData: FormData) {
     redirect("/register?error=invalid-name");
   }
 
-  const supabase = await createClient();
-  const { error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      data: { display_name: displayName },
-      emailRedirectTo: `${getOrigin()}/auth/callback?next=/`,
-    },
-  });
+  let signupError:
+    | { code: string; status: number | null; message: string }
+    | null = null;
 
-  if (error) {
-    const errorCode =
-      "code" in error && typeof error.code === "string"
-        ? error.code
-        : "";
-
-    console.error("[Uni Sound] Supabase sign-up failed:", {
-      code: errorCode || "unknown",
-      status: error.status,
-      message: error.message,
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { display_name: displayName },
+        emailRedirectTo: `${getOrigin()}/auth/callback?next=/`,
+      },
     });
+
+    if (error) {
+      signupError = {
+        code: "code" in error && typeof error.code === "string" ? error.code : "unknown",
+        status: typeof error.status === "number" ? error.status : null,
+        message: error.message,
+      };
+    }
+  } catch (error) {
+    signupError = {
+      code: "server-configuration-error",
+      status: null,
+      message: error instanceof Error ? error.message : "Unknown server error",
+    };
+  }
+
+  if (signupError) {
+    console.error("[Uni Sound] Supabase sign-up failed:", signupError);
 
     const knownErrors: Record<string, string> = {
       user_already_exists: "email-exists",
@@ -65,9 +76,12 @@ export async function signUp(formData: FormData) {
       over_request_rate_limit: "rate-limit",
     };
 
-    redirect(
-      `/register?error=${knownErrors[errorCode] ?? "signup-failed"}`,
+    const errorType = knownErrors[signupError.code] ?? "signup-failed";
+    const detail = encodeURIComponent(
+      `${signupError.code} | HTTP ${signupError.status ?? "—"} | ${signupError.message}`.slice(0, 240),
     );
+
+    redirect(`/register?error=${errorType}&detail=${detail}`);
   }
 
   redirect("/check-email");
