@@ -20,7 +20,7 @@ export async function signUp(formData: FormData) {
   const password = getPassword(formData, "password");
   const displayName = getText(formData, "displayName");
 
-  if (!email || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) {
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     redirect("/register?error=invalid-email");
   }
 
