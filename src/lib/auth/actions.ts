@@ -7,13 +7,17 @@ function getText(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();
 }
 
+function getPassword(formData: FormData, key: string) {
+  return String(formData.get(key) ?? "");
+}
+
 function getOrigin() {
   return process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 }
 
 export async function signUp(formData: FormData) {
   const email = getText(formData, "email").toLowerCase();
-  const password = getText(formData, "password");
+  const password = getPassword(formData, "password");
   const displayName = getText(formData, "displayName");
 
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -87,7 +91,7 @@ export async function requestPasswordReset(formData: FormData) {
 
 export async function updatePassword(formData: FormData) {
   const password = getText(formData, "password");
-  const confirmation = getText(formData, "confirmation");
+  const confirmation = getPassword(formData, "confirmation");
 
   if (password.length < 10 || password !== confirmation) {
     redirect("/auth/reset-password?error=invalid-password");
