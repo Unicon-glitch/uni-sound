@@ -111,14 +111,14 @@ language sql
 stable
 security definer
 set search_path = ''
-as $
+as $$
   select exists (
     select 1
     from public.profiles
     where id = (select auth.uid())
       and role = 'admin'::public.account_role
   );
-$;
+$$;
 
 revoke all on function public.is_admin() from public;
 grant execute on function public.is_admin() to authenticated;
@@ -127,9 +127,9 @@ grant execute on function public.is_admin() to authenticated;
 create or replace function public.protect_profile_privileges()
 returns trigger
 language plpgsql
-security definer
+
 set search_path = ''
-as $
+as $$
 begin
   if current_user not in ('postgres', 'supabase_admin', 'service_role')
      and not public.is_admin() then
@@ -138,7 +138,7 @@ begin
   end if;
   return new;
 end;
-$;
+$$;
 
 create trigger profiles_protect_privileges
   before update on public.profiles
