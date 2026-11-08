@@ -131,7 +131,8 @@ security definer
 set search_path = ''
 as $
 begin
-  if not public.is_admin() then
+  if current_user not in ('postgres', 'supabase_admin', 'service_role')
+     and not public.is_admin() then
     new.email := old.email;
     new.role := old.role;
   end if;
