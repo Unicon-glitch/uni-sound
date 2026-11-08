@@ -50,10 +50,10 @@ export default async function HomePage() {
   return (
     <main className="app-shell">
       <aside className="sidebar">
-        <a className="brand" href="/" aria-label="Uni Sound — главная">
+        <Link className="brand" href="/" aria-label="Uni Sound — главная">
           <span className="brand-mark">U</span>
           <span className="brand-name">uni<span>sound</span></span>
-        </a>
+        </Link>
 
         <div className="sidebar-label">МЕНЮ</div>
         <nav className="navigation" aria-label="Основная навигация">
