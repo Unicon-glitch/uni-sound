@@ -4,6 +4,8 @@ import { signOut } from "@/lib/auth/actions";
 import { createClient } from "@/lib/supabase/server";
 import { ShieldCheck } from "lucide-react";
 
+export const dynamic = "force-dynamic";
+
 export default async function AdminPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
