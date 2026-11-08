@@ -80,8 +80,8 @@ create index tracks_release_number_idx on public.tracks(release_id, track_number
 create index playlist_tracks_order_idx on public.playlist_tracks(playlist_id, position);
 create index playlists_user_idx on public.playlists(user_id, updated_at desc);
 
--- Create a profile on signup. The initial admin is granted only to this exact,
--- verified email address; changing a profile's role is never allowed to users.
+-- Create a regular profile on signup. Promote the verified owner account
+-- to admin manually after its first signup (instructions at the end).
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
@@ -94,11 +94,7 @@ begin
     new.id,
     coalesce(new.email, ''),
     coalesce(new.raw_user_meta_data ->> 'display_name', ''),
-    case
-      when lower(coalesce(new.email, '')) = 'unicon.music@mail.ru'
-        then 'admin'::public.account_role
-      else 'user'::public.account_role
-    end
+    'user'::public.account_role
   );
   return new;
 end;
@@ -107,6 +103,45 @@ $$;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure public.handle_new_user();
+
+-- SECURITY DEFINER avoids recursive RLS checks when policies need to test roles.
+create or replace function public.is_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $
+  select exists (
+    select 1
+    from public.profiles
+    where id = (select auth.uid())
+      and role = 'admin'::public.account_role
+  );
+$;
+
+revoke all on function public.is_admin() from public;
+grant execute on function public.is_admin() to authenticated;
+
+-- Users may edit their display name/avatar, but never their email or role.
+create or replace function public.protect_profile_privileges()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $
+begin
+  if not public.is_admin() then
+    new.email := old.email;
+    new.role := old.role;
+  end if;
+  return new;
+end;
+$;
+
+create trigger profiles_protect_privileges
+  before update on public.profiles
+  for each row execute procedure public.protect_profile_privileges();
 
 create or replace function public.set_updated_at()
 returns trigger
@@ -142,19 +177,13 @@ alter table public.playlist_tracks enable row level security;
 create policy "Profiles: read own profile"
   on public.profiles for select
   to authenticated
-  using (id = (select auth.uid()) or exists (
-    select 1 from public.profiles me
-    where me.id = (select auth.uid()) and me.role = 'admin'
-  ));
+  using (id = (select auth.uid()) or (select public.is_admin()));
 
-create policy "Profiles: update own non-privileged fields"
+create policy "Profiles: update own profile"
   on public.profiles for update
   to authenticated
-  using (id = (select auth.uid()))
-  with check (
-    id = (select auth.uid())
-    and role = (select role from public.profiles p where p.id = (select auth.uid()))
-  );
+  using (id = (select auth.uid()) or (select public.is_admin()))
+  with check (id = (select auth.uid()) or (select public.is_admin()));
 
 create policy "Artists: public read"
   on public.artists for select
@@ -164,8 +193,8 @@ create policy "Artists: public read"
 create policy "Artists: admin manage"
   on public.artists for all
   to authenticated
-  using (exists (select 1 from public.profiles p where p.id = (select auth.uid()) and p.role = 'admin'))
-  with check (exists (select 1 from public.profiles p where p.id = (select auth.uid()) and p.role = 'admin'));
+  using ((select public.is_admin()))
+  with check ((select public.is_admin()));
 
 create policy "Releases: public read published"
   on public.releases for select
@@ -177,8 +206,8 @@ create policy "Releases: public read published"
 create policy "Releases: admin manage"
   on public.releases for all
   to authenticated
-  using (exists (select 1 from public.profiles p where p.id = (select auth.uid()) and p.role = 'admin'))
-  with check (exists (select 1 from public.profiles p where p.id = (select auth.uid()) and p.role = 'admin'));
+  using ((select public.is_admin()))
+  with check ((select public.is_admin()));
 
 create policy "Tracks: public read published releases"
   on public.tracks for select
@@ -193,8 +222,8 @@ create policy "Tracks: public read published releases"
 create policy "Tracks: admin manage"
   on public.tracks for all
   to authenticated
-  using (exists (select 1 from public.profiles p where p.id = (select auth.uid()) and p.role = 'admin'))
-  with check (exists (select 1 from public.profiles p where p.id = (select auth.uid()) and p.role = 'admin'));
+  using ((select public.is_admin()))
+  with check ((select public.is_admin()));
 
 create policy "Favorites: owner access"
   on public.favorites for all
@@ -235,7 +264,15 @@ create policy "Playlist tracks: owner manage"
 
 grant usage on schema public to anon, authenticated;
 grant select on public.artists, public.releases, public.tracks to anon, authenticated;
+grant insert, update, delete on public.artists, public.releases, public.tracks to authenticated;
 grant select, update on public.profiles to authenticated;
 grant select, insert, delete on public.favorites to authenticated;
 grant select, insert, update, delete on public.playlists to authenticated;
 grant select, insert, delete on public.playlist_tracks to authenticated;
+
+
+-- After signing up with unicon.music@mail.ru and confirming the email,
+-- run this once in the Supabase SQL Editor to grant the owner admin access:
+-- update public.profiles
+-- set role = 'admin'
+-- where lower(email) = 'unicon.music@mail.ru';
